@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple BB Reversal Strategy Backtester - Standalone</title>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f1419;
+            color: #e1e8ed;
+        }
+        
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            width: 320px;
+            background: #1a1f2e;
+            border-right: 1px solid #2a2e39;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: #1a1f2e;
+            border-bottom: 1px solid #2a2e39;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .title {
+            font-size: 22px;
+            font-weight: bold;
+            color: #2962ff;
+        }
+        
+        .charts-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #131722;
+        }
+        
+        #chart-container {
+            flex: 7;
+            position: relative;
+            min-height: 400px;
+        }
+        
+        #rsi-container {
+            flex: 2;
+            position: relative;
+            min-height: 200px;
+            border-top: 1px solid #2a2e39;
+        }
+        
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #2962ff;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+        
+        .file-input-wrapper label {
+            display: block;
+            padding: 12px;
+            background: #2962ff;
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .file-input-wrapper label:hover {
+            background: #1e53e4;
+        }
+        
+        .parameter-group {
+            margin-bottom: 15px;
+        }
+        
+        .parameter-label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            color: #8899a6;
+        }
+        
+        .parameter-input {
+            width: 100%;
+            padding: 8px;
+            background: #253341;
+            border: 1px solid #2a2e39;
+            color: #e1e8ed;
+            border-radius: 4px;
+        }
+        
+        .run-button {
+            width: 100%;
+            padding: 12px;
+            background: #26a69a;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 20px;
+        }
+        
+        .run-button:hover:not(:disabled) {
+            background: #1e8b7e;
+        }
+        
+        .run-button:disabled {
+            background: #3a4553;
+            cursor: not-allowed;
+        }
+        
+        .stats-section {
+            margin-top: 30px;
+            padding: 15px;
+            background: #253341;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #2a2e39;
+        }
+        
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            color: #8899a6;
+            font-size: 13px;
+        }
+        
+        .stat-value {
+            font-weight: bold;
+            font-size: 13px;
+        }
+        
+        .positive { color: #26a69a; }
+        .negative { color: #ef5350; }
+        .neutral { color: #e1e8ed; }
+        
+        .message {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            display: none;
+        }
+        
+        .error { background: rgba(239, 83, 80, 0.1); color: #ef5350; }
+        .success { background: rgba(38, 166, 154, 0.1); color: #26a69a; }
+        
+        .loading {
+            text-align: center;
+            color: #8899a6;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="section-title">📁 Upload CSV File</div>
+            <div class="file-input-wrapper">
+                <input type="file" id="file-input" accept=".csv">
+                <label for="file-input">Choose File or Drop Here</label>
+            </div>
+            <div id="file-name" style="margin-bottom: 20px; font-size: 12px; color: #8899a6;"></div>
+            
+            <div class="section-title">⚙️ Strategy Parameters</div>
+            
+            <div class="parameter-group">
+                <label class="parameter-label">Bollinger Band Period</label>
+                <input type="number" class="parameter-input" id="bb-period" value="20" min="5" max="50">
+            </div>
+            
+            <div class="parameter-group">
+                <label class="parameter-label">Bollinger Band Std Dev</label>
+                <input type="number" class="parameter-input" id="bb-std" value="2.5" min="1" max="4" step="0.1">
+            </div>
+            
+            <div class="parameter-group">
+                <label class="parameter-label">RSI Entry Threshold</label>
+                <input type="number" class="parameter-input" id="rsi-threshold" value="75" min="50" max="90">
+            </div>
+            
+            <div class="parameter-group">
+                <label class="parameter-label">Stop Loss (Points)</label>
+                <input type="number" class="parameter-input" id="stop-loss" value="5.0" min="1" max="20" step="0.5">
+            </div>
+            
+            <div class="parameter-group">
+                <label class="parameter-label">Take Profit (Points)</label>
+                <input type="number" class="parameter-input" id="take-profit" value="5.0" min="1" max="20" step="0.5">
+            </div>
+            
+            <div class="parameter-group">
+                <label class="parameter-label">$ Per Point</label>
+                <input type="number" class="parameter-input" id="dollars-per-point" value="5" min="1" max="50" step="1">
+            </div>
+            
+            <button class="run-button" id="run-button" disabled>Run Backtest</button>
+            
+            <div class="message error" id="error-message"></div>
+            <div class="message success" id="success-message"></div>
+            
+            <div class="stats-section" id="stats-section">
+                <div class="section-title">📊 Backtest Results</div>
+                <div id="stats-content"></div>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="header">
+                <div class="title">Simple BB Reversal Strategy</div>
+                <div id="info" style="font-size: 14px; color: #8899a6;"></div>
+            </div>
+            
+            <div class="charts-container">
+                <div id="chart-container">
+                    <div class="loading">Load a CSV file to begin</div>
+                </div>
+                <div id="rsi-container"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let chart = null;
+        let rsiChart = null;
+        let csvData = null;
+        let processedData = null;
+        
+        // File input handler
+        document.getElementById('file-input').addEventListener('change', handleFileSelect);
+        document.getElementById('run-button').addEventListener('click', runBacktest);
+        
+        // Drag and drop support
+        const label = document.querySelector('.file-input-wrapper label');
+        label.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            label.style.background = '#1e53e4';
+        });
+        label.addEventListener('dragleave', () => {
+            label.style.background = '#2962ff';
+        });
+        label.addEventListener('drop', (e) => {
+            e.preventDefault();
+            label.style.background = '#2962ff';
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+        
+        function handleFile(file) {
+            if (!file.name.endsWith('.csv')) {
+                showError('Please select a CSV file');
+                return;
+            }
+            
+            document.getElementById('file-name').textContent = file.name;
+            
+            Papa.parse(file, {
+                complete: function(results) {
+                    csvData = results.data;
+                    processCSVData();
+                },
+                error: function(error) {
+                    showError('Error parsing CSV: ' + error.message);
+                }
+            });
+        }
+        
+        function processCSVData() {
+            try {
+                // Check if header exists
+                const headers = csvData[0];
+                let isGLBXFormat = false;
+                let hasHeaders = false;
+                
+                // Check for GLBX MDP3 format
+                if (headers && headers.includes('ts_event') && headers.includes('symbol')) {
+                    isGLBXFormat = true;
+                    hasHeaders = true;
+                }
+                // Check for regular CSV headers
+                else if (headers && (headers.includes('Time') || headers.includes('datetime'))) {
+                    hasHeaders = true;
+                }
+                
+                // Process data based on format
+                processedData = [];
+                const startRow = hasHeaders ? 1 : 0;
+                
+                for (let i = startRow; i < csvData.length; i++) {
+                    const row = csvData[i];
+                    if (!row[0]) continue;
+                    
+                    // Handle GLBX MDP3 format
+                    if (isGLBXFormat) {
+                        const symbolIdx = headers.indexOf('symbol');
+                        // Filter for MESU5 only
+                        if (row[symbolIdx] !== 'MESU5') continue;
+                        
+                        const datetime = new Date(row[headers.indexOf('ts_event')]);
+                        if (isNaN(datetime.getTime())) continue;
+                        
+                        processedData.push({
+                            datetime: datetime,
+                            timestamp: Math.floor(datetime.getTime() / 1000),
+                            open: parseFloat(row[headers.indexOf('open')]),
+                            high: parseFloat(row[headers.indexOf('high')]),
+                            low: parseFloat(row[headers.indexOf('low')]),
+                            close: parseFloat(row[headers.indexOf('close')]),
+                            volume: parseFloat(row[headers.indexOf('volume')]) || 0
+                        });
+                    }
+                    // Handle regular format
+                    else {
+                        if (row[0].includes('Downloaded')) break;
+                        
+                        const datetime = new Date(row[0]);
+                        if (isNaN(datetime.getTime())) continue;
+                        
+                        processedData.push({
+                            datetime: datetime,
+                            timestamp: Math.floor(datetime.getTime() / 1000),
+                            open: parseFloat(row[1]),
+                            high: parseFloat(row[2]),
+                            low: parseFloat(row[3]),
+                            close: parseFloat(row[4]) || parseFloat(row[3]),
+                            volume: parseFloat(row[6]) || 0
+                        });
+                    }
+                }
+                
+                // Sort by date
+                processedData.sort((a, b) => a.datetime - b.datetime);
+                
+                console.log(`Loaded ${processedData.length} bars${isGLBXFormat ? ' (MESU5 filtered from GLBX MDP3)' : ''}`);
+                
+                document.getElementById('run-button').disabled = false;
+                showSuccess(`Loaded ${processedData.length} bars`);
+                
+            } catch (error) {
+                showError('Error processing data: ' + error.message);
+            }
+        }
+        
+        function calculateRMA(values, period) {
+            // Pine Script's ta.rma implementation
+            const rma = new Array(values.length).fill(null);
+            const alpha = 1.0 / period;
+            
+            // Find first non-null value to start
+            let firstValidIndex = -1;
+            for (let i = 0; i < values.length; i++) {
+                if (values[i] !== null && !isNaN(values[i])) {
+                    firstValidIndex = i;
+                    break;
+                }
+            }
+            
+            if (firstValidIndex === -1 || firstValidIndex + period > values.length) {
+                return rma;
+            }
+            
+            // Initial RMA is SMA of first 'period' values
+            let sum = 0;
+            for (let i = firstValidIndex; i < firstValidIndex + period; i++) {
+                sum += values[i] || 0;
+            }
+            // Place the first RMA value at the correct position (after period bars)
+            rma[firstValidIndex + period] = sum / period;
+            
+            // Calculate subsequent RMA values
+            for (let i = firstValidIndex + period + 1; i < values.length; i++) {
+                const prevRMA = rma[i - 1];
+                if (prevRMA !== null) {
+                    rma[i] = alpha * (values[i] || 0) + (1 - alpha) * prevRMA;
+                }
+            }
+            
+            return rma;
+        }
+        
+        function calculateRSI(data, period = 14) {
+            // Pine Script exact RSI calculation using RMA
+            const rsi = [];
+            
+            if (data.length < period + 1) {
+                return data.map(() => null);
+            }
+            
+            // Calculate price changes (delta)
+            const changes = [];
+            for (let i = 0; i < data.length; i++) {
+                if (i === 0) {
+                    changes.push(0); // First bar has no change
+                } else {
+                    changes.push(data[i].close - data[i - 1].close);
+                }
+            }
+            
+            // Separate gains and losses (matching Pine's math.max and -math.min)
+            const gains = changes.map(c => Math.max(c, 0));
+            const losses = changes.map(c => Math.max(-c, 0));
+            
+            // Calculate RMA of gains and losses
+            const avgGains = calculateRMA(gains, period);
+            const avgLosses = calculateRMA(losses, period);
+            
+            // Calculate RSI with Pine Script's exact edge case handling
+            for (let i = 0; i < data.length; i++) {
+                if (avgGains[i] === null || avgLosses[i] === null) {
+                    rsi.push(null);
+                } else {
+                    // Match Pine's ternary order: down == 0 ? 100 : up == 0 ? 0 : formula
+                    if (avgLosses[i] === 0) {
+                        rsi.push(100);
+                    } else if (avgGains[i] === 0) {
+                        rsi.push(0);
+                    } else {
+                        const rs = avgGains[i] / avgLosses[i];
+                        rsi.push(100 - (100 / (1 + rs)));
+                    }
+                }
+            }
+            
+            return rsi;
+        }
+        
+        function calculateBollingerBands(data, period = 20, stdDev = 2.5) {
+            const bands = { upper: [], middle: [], lower: [] };
+            
+            for (let i = 0; i < data.length; i++) {
+                if (i < period - 1) {
+                    bands.upper.push(null);
+                    bands.middle.push(null);
+                    bands.lower.push(null);
+                    continue;
+                }
+                
+                // Calculate SMA (Simple Moving Average)
+                let sum = 0;
+                for (let j = i - period + 1; j <= i; j++) {
+                    sum += data[j].close;
+                }
+                const sma = sum / period;
+                
+                // Calculate sample standard deviation (matching pandas .std())
+                let squaredDiffs = 0;
+                for (let j = i - period + 1; j <= i; j++) {
+                    squaredDiffs += Math.pow(data[j].close - sma, 2);
+                }
+                // Use sample std dev (divide by N-1) to match FINAL_BACKTEST.py
+                const stdDeviation = Math.sqrt(squaredDiffs / (period - 1));
+                
+                bands.middle.push(sma);
+                bands.upper.push(sma + stdDeviation * stdDev);
+                bands.lower.push(sma - stdDeviation * stdDev);
+            }
+            
+            return bands;
+        }
+        
+        function runBacktest() {
+            if (!processedData) return;
+            
+            // Get parameters
+            const bbPeriod = parseInt(document.getElementById('bb-period').value);
+            const bbStd = parseFloat(document.getElementById('bb-std').value);
+            const rsiThreshold = parseFloat(document.getElementById('rsi-threshold').value);
+            const stopLoss = parseFloat(document.getElementById('stop-loss').value);  // In points
+            const takeProfit = parseFloat(document.getElementById('take-profit').value);  // In points
+            const dollarsPerPoint = parseFloat(document.getElementById('dollars-per-point').value);
+            
+            // Calculate indicators
+            const rsi = calculateRSI(processedData);
+            const bb = calculateBollingerBands(processedData, bbPeriod, bbStd);
+            
+            // Run strategy - MATCHING FINAL_BACKTEST.py exactly
+            const trades = [];
+            let position = null;
+            
+            // Start after indicators are ready (100 bars like in FINAL_BACKTEST)
+            const startIndex = Math.max(100, bbPeriod);
+            
+            for (let i = startIndex; i < processedData.length; i++) {
+                const bar = processedData[i];
+                const hour = bar.datetime.getHours();
+                
+                if (position) {
+                    // EXIT LOGIC - Check exit conditions (matching FINAL_BACKTEST)
+                    const barsHeld = i - position.entryIndex;
+                    let exitSignal = false;
+                    let exitPrice = bar.close;
+                    let exitReason = '';
+                    let pnlPoints = 0;
+                    
+                    // Check stop loss (price went UP for short position)
+                    if (bar.high >= position.stopLossPrice) {
+                        exitPrice = position.stopLossPrice;
+                        exitReason = 'STOP_LOSS';
+                        pnlPoints = -stopLoss;  // Loss
+                        exitSignal = true;
+                    }
+                    // Check take profit (price went DOWN for short position)
+                    else if (bar.low <= position.takeProfitPrice) {
+                        exitPrice = position.takeProfitPrice;
+                        exitReason = 'TAKE_PROFIT';
+                        pnlPoints = takeProfit;  // Profit
+                        exitSignal = true;
+                    }
+                    
+                    if (exitSignal) {
+                        const pnlDollars = pnlPoints * dollarsPerPoint;
+                        const durationMinutes = (bar.datetime - position.entryTime) / (1000 * 60); // Convert ms to minutes
+                        trades.push({
+                            entryTime: position.entryTime,
+                            entryPrice: position.entryPrice,
+                            exitTime: bar.datetime,
+                            exitPrice: exitPrice,
+                            pnl: pnlDollars,
+                            pnlPoints: pnlPoints,
+                            reason: exitReason,
+                            barsHeld: barsHeld,
+                            durationMinutes: durationMinutes
+                        });
+                        position = null;
+                    }
+                }
+                else {
+                    // ENTRY LOGIC - Check entry conditions (matching FINAL_BACKTEST)
+                    const bbSignal = bar.close > bb.upper[i];
+                    const rsiSignal = rsi[i] > rsiThreshold;
+                    const timeSignal = hour >= 9 && hour <= 15;  // Trading hours
+                    
+                    if (bbSignal && rsiSignal && timeSignal) {
+                        position = {
+                            entryIndex: i,
+                            entryTime: bar.datetime,
+                            entryPrice: bar.close,
+                            stopLossPrice: bar.close + stopLoss,  // Price goes UP = loss for short
+                            takeProfitPrice: bar.close - takeProfit  // Price goes DOWN = profit for short
+                        };
+                    }
+                }
+            }
+            
+            // Display results
+            displayResults(trades, rsi, bb);
+        }
+        
+        function displayResults(trades, rsi, bb) {
+            // Calculate statistics (matching FINAL_BACKTEST output)
+            const wins = trades.filter(t => t.pnl > 0);
+            const losses = trades.filter(t => t.pnl < 0);
+            const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+            const totalPnlPoints = trades.reduce((sum, t) => sum + t.pnlPoints, 0);
+            const winRate = trades.length > 0 ? (wins.length / trades.length * 100) : 0;
+            
+            // Calculate average durations
+            const avgBarsHeld = trades.length > 0 ? 
+                trades.reduce((sum, t) => sum + t.barsHeld, 0) / trades.length : 0;
+            const avgMinutes = trades.length > 0 ? 
+                trades.reduce((sum, t) => sum + t.durationMinutes, 0) / trades.length : 0;
+            
+            // Find min and max durations
+            const durations = trades.map(t => t.durationMinutes);
+            const minDuration = durations.length > 0 ? Math.min(...durations) : 0;
+            const maxDuration = durations.length > 0 ? Math.max(...durations) : 0;
+            
+            // Display stats
+            const statsHtml = `
+                <div class="stat-row">
+                    <span class="stat-label">Total Trades</span>
+                    <span class="stat-value neutral">${trades.length}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Winners / Losers</span>
+                    <span class="stat-value neutral">${wins.length} / ${losses.length}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Win Rate</span>
+                    <span class="stat-value ${winRate >= 50 ? 'positive' : 'negative'}">${winRate.toFixed(1)}%</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Total P&L (Points)</span>
+                    <span class="stat-value ${totalPnlPoints >= 0 ? 'positive' : 'negative'}">${totalPnlPoints.toFixed(1)} pts</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Total P&L ($)</span>
+                    <span class="stat-value ${totalPnl >= 0 ? 'positive' : 'negative'}">$${totalPnl.toFixed(2)}</span>
+                </div>
+                <div class="stat-row" style="border-top: 1px solid #2a2e39; margin-top: 5px; padding-top: 5px;">
+                    <span class="stat-label">Avg Duration</span>
+                    <span class="stat-value neutral">${avgMinutes.toFixed(1)} min (${avgBarsHeld.toFixed(0)} bars)</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Shortest Trade</span>
+                    <span class="stat-value neutral">${minDuration.toFixed(1)} minutes</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Longest Trade</span>
+                    <span class="stat-value neutral">${maxDuration.toFixed(1)} minutes</span>
+                </div>
+            `;
+            
+            document.getElementById('stats-content').innerHTML = statsHtml;
+            document.getElementById('stats-section').style.display = 'block';
+            document.getElementById('info').textContent = 
+                `${trades.length} trades | ${winRate.toFixed(1)}% win | $${totalPnl.toFixed(0)}`;
+            
+            // Display chart
+            displayChart(processedData, trades, rsi, bb);
+        }
+        
+        function displayChart(data, trades, rsi, bb) {
+            // Clear existing charts
+            document.getElementById('chart-container').innerHTML = '';
+            document.getElementById('rsi-container').innerHTML = '';
+            
+            // Create main chart
+            const chartContainer = document.getElementById('chart-container');
+            chart = LightweightCharts.createChart(chartContainer, {
+                width: chartContainer.clientWidth,
+                height: chartContainer.clientHeight,
+                layout: {
+                    background: { type: 'solid', color: '#131722' },
+                    textColor: '#d1d4dc',
+                },
+                grid: {
+                    vertLines: { 
+                        color: 'rgba(42, 46, 57, 0.5)',  // More visible vertical lines
+                        visible: true
+                    },
+                    horzLines: { 
+                        color: 'rgba(42, 46, 57, 0.5)',  // More visible horizontal lines
+                        visible: true
+                    },
+                },
+                rightPriceScale: {
+                    borderColor: '#2a2e39',
+                },
+                timeScale: {
+                    borderColor: '#2a2e39',
+                    timeVisible: true,  // Show time
+                    secondsVisible: false,  // Don't show seconds
+                    tickMarkFormatter: (time, tickMarkType, locale) => {
+                        const date = new Date(time * 1000);
+                        const hours = date.getHours().toString().padStart(2, '0');
+                        const minutes = date.getMinutes().toString().padStart(2, '0');
+                        
+                        // Just show time on the axis
+                        return `${hours}:${minutes}`;
+                    }
+                },
+                crosshair: {
+                    mode: 0,  // Normal mode
+                    vertLine: {
+                        labelVisible: true,
+                    },
+                    horzLine: {
+                        labelVisible: true,
+                    }
+                },
+                localization: {
+                    locale: 'en-US',
+                    dateFormat: 'yyyy-MM-dd',
+                    timeFormatter: (businessDayOrTimestamp) => {
+                        const date = new Date(businessDayOrTimestamp * 1000);
+                        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        
+                        const dayName = dayNames[date.getDay()];
+                        const day = date.getDate();
+                        const month = monthNames[date.getMonth()];
+                        const year = date.getFullYear().toString().slice(-2);  // Last 2 digits of year
+                        const hours = date.getHours().toString().padStart(2, '0');
+                        const minutes = date.getMinutes().toString().padStart(2, '0');
+                        
+                        return `${dayName} ${day} ${month} '${year}  ${hours}:${minutes}`;
+                    }
+                },
+            });
+            
+            // Add candlestick series (v5 API)
+            let candleSeries;
+            try {
+                candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
+                    upColor: '#26a69a',
+                    downColor: '#ef5350',
+                    borderUpColor: '#26a69a',
+                    borderDownColor: '#ef5350',
+                    wickUpColor: '#26a69a',
+                    wickDownColor: '#ef5350',
+                });
+            } catch (e) {
+                // Fallback to v4 API
+                candleSeries = chart.addCandlestickSeries({
+                    upColor: '#26a69a',
+                    downColor: '#ef5350',
+                    borderUpColor: '#26a69a',
+                    borderDownColor: '#ef5350',
+                    wickUpColor: '#26a69a',
+                    wickDownColor: '#ef5350',
+                });
+            }
+            
+            const candleData = data.map(d => ({
+                time: d.timestamp,
+                open: d.open,
+                high: d.high,
+                low: d.low,
+                close: d.close
+            }));
+            candleSeries.setData(candleData);
+            
+            // Add Bollinger Bands (v5 API) - only if we have data
+            let bbUpperSeries, bbMiddleSeries, bbLowerSeries;
+            const bbUpperData = data.map((d, i) => bb.upper[i] ? 
+                { time: d.timestamp, value: bb.upper[i] } : null).filter(d => d);
+            const bbMiddleData = data.map((d, i) => bb.middle[i] ? 
+                { time: d.timestamp, value: bb.middle[i] } : null).filter(d => d);
+            const bbLowerData = data.map((d, i) => bb.lower[i] ? 
+                { time: d.timestamp, value: bb.lower[i] } : null).filter(d => d);
+                
+            if (bbUpperData.length > 0) {
+                try {
+                    bbUpperSeries = chart.addSeries(LightweightCharts.LineSeries, {
+                        color: 'rgba(255, 82, 82, 0.5)',
+                        lineWidth: 1,
+                        lineStyle: 2,
+                        priceLineVisible: false,
+                        lastValueVisible: false,
+                        crosshairMarkerVisible: false,
+                    });
+                    bbMiddleSeries = chart.addSeries(LightweightCharts.LineSeries, {
+                        color: 'rgba(255, 255, 255, 0.3)',
+                        lineWidth: 1,
+                        priceLineVisible: false,
+                        lastValueVisible: false,
+                        crosshairMarkerVisible: false,
+                    });
+                    bbLowerSeries = chart.addSeries(LightweightCharts.LineSeries, {
+                        color: 'rgba(38, 166, 154, 0.5)',
+                        lineWidth: 1,
+                        lineStyle: 2,
+                        priceLineVisible: false,
+                        lastValueVisible: false,
+                        crosshairMarkerVisible: false,
+                    });
+                } catch (e) {
+                    // Fallback to v4 API
+                    bbUpperSeries = chart.addLineSeries({
+                        color: 'rgba(255, 82, 82, 0.5)',
+                        lineWidth: 1,
+                        lineStyle: 2,
+                        priceLineVisible: false,
+                        lastValueVisible: false,
+                        crosshairMarkerVisible: false,
+                    });
+                    bbMiddleSeries = chart.addLineSeries({
+                        color: 'rgba(255, 255, 255, 0.3)',
+                        lineWidth: 1,
+                        priceLineVisible: false,
+                        lastValueVisible: false,
+                        crosshairMarkerVisible: false,
+                    });
+                    bbLowerSeries = chart.addLineSeries({
+                        color: 'rgba(38, 166, 154, 0.5)',
+                        lineWidth: 1,
+                        lineStyle: 2,
+                        priceLineVisible: false,
+                        lastValueVisible: false,
+                        crosshairMarkerVisible: false,
+                    });
+                }
+                
+                bbUpperSeries.setData(bbUpperData);
+                bbMiddleSeries.setData(bbMiddleData);
+                bbLowerSeries.setData(bbLowerData);
+            }
+            
+            // Add trade markers (v5 API)
+            const markers = [];
+            trades.forEach((trade, i) => {
+                markers.push({
+                    time: Math.floor(trade.entryTime.getTime() / 1000),
+                    position: 'aboveBar',
+                    color: '#ef5350',
+                    shape: 'arrowDown',
+                    text: `SHORT #${i+1} @ ${trade.entryPrice.toFixed(2)}`
+                });
+                markers.push({
+                    time: Math.floor(trade.exitTime.getTime() / 1000),
+                    position: 'belowBar',
+                    color: trade.pnl > 0 ? '#26a69a' : '#ef5350',
+                    shape: 'arrowUp',
+                    text: `${trade.reason} (${trade.durationMinutes.toFixed(0)}min) ${trade.pnl > 0 ? '+' : ''}$${trade.pnl.toFixed(0)}`
+                });
+            });
+            
+            try {
+                if (LightweightCharts.createSeriesMarkers) {
+                    LightweightCharts.createSeriesMarkers(candleSeries, markers);
+                } else {
+                    candleSeries.setMarkers(markers);
+                }
+            } catch (e) {
+                try {
+                    candleSeries.setMarkers(markers);
+                } catch (e2) {
+                    console.log('Markers not supported');
+                }
+            }
+            
+            // Create RSI chart
+            const rsiContainer = document.getElementById('rsi-container');
+            rsiChart = LightweightCharts.createChart(rsiContainer, {
+                width: rsiContainer.clientWidth,
+                height: rsiContainer.clientHeight,
+                layout: {
+                    background: { type: 'solid', color: '#131722' },
+                    textColor: '#d1d4dc',
+                },
+                grid: {
+                    vertLines: { 
+                        color: 'rgba(42, 46, 57, 0.5)',  // Match main chart visibility
+                        visible: true
+                    },
+                    horzLines: { 
+                        color: 'rgba(42, 46, 57, 0.5)',  // Match main chart visibility
+                        visible: true
+                    },
+                },
+                rightPriceScale: {
+                    borderColor: '#2a2e39',
+                },
+                timeScale: { 
+                    visible: true,  // Show time scale to fix alignment
+                    borderColor: '#2a2e39',
+                    timeVisible: true,
+                    secondsVisible: false,
+                    tickMarkFormatter: (time, tickMarkType, locale) => {
+                        const date = new Date(time * 1000);
+                        const hours = date.getHours().toString().padStart(2, '0');
+                        const minutes = date.getMinutes().toString().padStart(2, '0');
+                        return `${hours}:${minutes}`;
+                    }
+                },
+            });
+            
+            // Add RSI series (v5 API)
+            let rsiSeries;
+            try {
+                rsiSeries = rsiChart.addSeries(LightweightCharts.LineSeries, {
+                    color: '#2962ff',
+                    lineWidth: 2,
+                });
+            } catch (e) {
+                rsiSeries = rsiChart.addLineSeries({
+                    color: '#2962ff',
+                    lineWidth: 2,
+                });
+            }
+            
+            // Keep all data points including nulls to maintain proper alignment
+            const rsiData = data.map((d, i) => ({ 
+                time: d.timestamp, 
+                value: rsi[i] !== null ? rsi[i] : undefined 
+            }));
+            // Filter out undefined values for the actual series data
+            const validRsiData = rsiData.filter(d => d.value !== undefined);
+            rsiSeries.setData(validRsiData);
+            
+            // Add RSI levels (v5 API) - Only add if we have RSI data
+            if (rsiData.length > 0) {
+                let rsi70Series, rsi30Series;
+                try {
+                    rsi70Series = rsiChart.addSeries(LightweightCharts.LineSeries, {
+                        color: 'rgba(255, 82, 82, 0.3)',
+                        lineStyle: 3,
+                        priceLineVisible: false,
+                        lastValueVisible: false,
+                        crosshairMarkerVisible: false,
+                    });
+                    rsi30Series = rsiChart.addSeries(LightweightCharts.LineSeries, {
+                        color: 'rgba(38, 166, 154, 0.3)',
+                        lineStyle: 3,
+                        priceLineVisible: false,
+                        lastValueVisible: false,
+                        crosshairMarkerVisible: false,
+                    });
+                } catch (e) {
+                    rsi70Series = rsiChart.addLineSeries({
+                        color: 'rgba(255, 82, 82, 0.3)',
+                        lineStyle: 3,
+                        priceLineVisible: false,
+                        lastValueVisible: false,
+                        crosshairMarkerVisible: false,
+                    });
+                    rsi30Series = rsiChart.addLineSeries({
+                        color: 'rgba(38, 166, 154, 0.3)',
+                        lineStyle: 3,
+                        priceLineVisible: false,
+                        lastValueVisible: false,
+                        crosshairMarkerVisible: false,
+                    });
+                }
+                
+                // Use all timestamps for level lines to span entire chart
+                rsi70Series.setData(data.map(d => ({ time: d.timestamp, value: 70 })));
+                rsi30Series.setData(data.map(d => ({ time: d.timestamp, value: 30 })));
+            }
+            
+            // Sync time scales to ensure both charts show the same range
+            const syncTimeScales = () => {
+                const timeScale1 = chart.timeScale();
+                const timeScale2 = rsiChart.timeScale();
+                
+                // Subscribe to visible range changes
+                timeScale1.subscribeVisibleLogicalRangeChange((range) => {
+                    if (range) timeScale2.setVisibleLogicalRange(range);
+                });
+                timeScale2.subscribeVisibleLogicalRangeChange((range) => {
+                    if (range) timeScale1.setVisibleLogicalRange(range);
+                });
+                
+                // Ensure both charts show the full data range
+                timeScale1.fitContent();
+                timeScale2.fitContent();
+                
+                // Force both to show the same time range
+                const range = timeScale1.getVisibleLogicalRange();
+                if (range) timeScale2.setVisibleLogicalRange(range);
+            };
+            
+            syncTimeScales();
+        }
+        
+        function showError(message) {
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error-message').style.display = 'block';
+            document.getElementById('success-message').style.display = 'none';
+        }
+        
+        function showSuccess(message) {
+            document.getElementById('success-message').textContent = message;
+            document.getElementById('success-message').style.display = 'block';
+            document.getElementById('error-message').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
