@@ -1,0 +1,34 @@
+# Data files
+data/
+*.csv
+
+# Archive folder
+archive_tests/
+
+# Output files
+*.json
+*_results.csv
+processed_data.csv
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+~*

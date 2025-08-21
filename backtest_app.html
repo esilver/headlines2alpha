@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple BB Reversal Strategy Backtester - Standalone</title>
+    <title>Optimized BB Reversal Strategy Backtester - Advanced</title>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
     <style>
@@ -214,18 +214,30 @@
             <div class="section-title">⚙️ Strategy Parameters</div>
             
             <div class="parameter-group">
+                <label class="parameter-label">Strategy Preset</label>
+                <select class="parameter-input" id="strategy-preset" onchange="loadPreset()">
+                    <option value="robust">✅ Robust (Recommended)</option>
+                    <option value="original">📊 Original Stable</option>
+                    <option value="conservative">🛡️ Conservative</option>
+                    <option value="aggressive">🚀 Aggressive</option>
+                    <option value="optimized">⚠️ Overfitted (Not Recommended)</option>
+                    <option value="custom">✏️ Custom</option>
+                </select>
+            </div>
+            
+            <div class="parameter-group">
                 <label class="parameter-label">Bollinger Band Period</label>
-                <input type="number" class="parameter-input" id="bb-period" value="20" min="5" max="50">
+                <input type="number" class="parameter-input" id="bb-period" value="22" min="5" max="50">
             </div>
             
             <div class="parameter-group">
                 <label class="parameter-label">Bollinger Band Std Dev</label>
-                <input type="number" class="parameter-input" id="bb-std" value="2.5" min="1" max="4" step="0.1">
+                <input type="number" class="parameter-input" id="bb-std" value="2.6" min="1" max="4" step="0.1">
             </div>
             
             <div class="parameter-group">
                 <label class="parameter-label">RSI Entry Threshold</label>
-                <input type="number" class="parameter-input" id="rsi-threshold" value="75" min="50" max="90">
+                <input type="number" class="parameter-input" id="rsi-threshold" value="70" min="50" max="90">
             </div>
             
             <div class="parameter-group">
@@ -256,7 +268,7 @@
         
         <div class="main-content">
             <div class="header">
-                <div class="title">Simple BB Reversal Strategy</div>
+                <div class="title">Optimized BB Reversal Strategy (Short-Only)</div>
                 <div id="info" style="font-size: 14px; color: #8899a6;"></div>
             </div>
             
@@ -274,6 +286,97 @@
         let rsiChart = null;
         let csvData = null;
         let processedData = null;
+        
+        // Strategy presets based on optimization results
+        const strategyPresets = {
+            robust: {
+                name: 'Robust Configuration (Recommended)',
+                bbPeriod: 22,
+                bbStd: 2.6,
+                rsiThreshold: 70,
+                stopLoss: 5.0,
+                takeProfit: 5.0,
+                description: 'Best out-of-sample: 61% win rate, consistent across markets'
+            },
+            optimized: {
+                name: 'In-Sample Optimized (Overfitted)',
+                bbPeriod: 20,
+                bbStd: 2.5,
+                rsiThreshold: 65,
+                stopLoss: 5.0,
+                takeProfit: 5.0,
+                description: 'Warning: Overfitted to July-Aug data, poor out-of-sample'
+            },
+            original: {
+                name: 'Original Stable',
+                bbPeriod: 20,
+                bbStd: 2.5,
+                rsiThreshold: 75,
+                stopLoss: 5.0,
+                takeProfit: 5.0,
+                description: 'Stable baseline: 57% win rate, fewer trades'
+            },
+            conservative: {
+                name: 'Conservative Configuration',
+                bbPeriod: 25,
+                bbStd: 2.75,
+                rsiThreshold: 75,
+                stopLoss: 4.0,
+                takeProfit: 4.0,
+                description: 'Lower risk, validated parameters'
+            },
+            aggressive: {
+                name: 'Aggressive Configuration',
+                bbPeriod: 18,
+                bbStd: 2.3,
+                rsiThreshold: 68,
+                stopLoss: 6.0,
+                takeProfit: 6.0,
+                description: 'Higher frequency, moderate risk'
+            }
+        };
+        
+        // Load preset parameters
+        function loadPreset() {
+            const presetName = document.getElementById('strategy-preset').value;
+            
+            if (presetName === 'custom') {
+                // Enable all inputs for custom mode
+                document.querySelectorAll('.parameter-input').forEach(input => {
+                    if (input.id !== 'strategy-preset') {
+                        input.disabled = false;
+                        input.style.opacity = '1';
+                    }
+                });
+                showSuccess('Custom mode: All parameters are editable');
+                return;
+            }
+            
+            const preset = strategyPresets[presetName];
+            if (preset) {
+                document.getElementById('bb-period').value = preset.bbPeriod;
+                document.getElementById('bb-std').value = preset.bbStd;
+                document.getElementById('rsi-threshold').value = preset.rsiThreshold;
+                document.getElementById('stop-loss').value = preset.stopLoss;
+                document.getElementById('take-profit').value = preset.takeProfit;
+                
+                // Show preset description
+                showSuccess(`Loaded ${preset.name}: ${preset.description}`);
+                
+                // Keep all inputs enabled but show they're preset values
+                document.querySelectorAll('.parameter-input').forEach(input => {
+                    if (input.id !== 'strategy-preset' && input.id !== 'dollars-per-point') {
+                        input.disabled = false;  // Keep enabled for visibility
+                        input.style.opacity = '0.7';  // Visual indication of preset
+                    }
+                });
+            }
+        }
+        
+        // Initialize with optimized preset on load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadPreset();
+        });
         
         // File input handler
         document.getElementById('file-input').addEventListener('change', handleFileSelect);
@@ -359,6 +462,7 @@
                         
                         processedData.push({
                             datetime: datetime,
+                            rawTimestamp: row[headers.indexOf('ts_event')], // Store raw CSV timestamp
                             timestamp: Math.floor(datetime.getTime() / 1000),
                             open: parseFloat(row[headers.indexOf('open')]),
                             high: parseFloat(row[headers.indexOf('high')]),
@@ -376,6 +480,7 @@
                         
                         processedData.push({
                             datetime: datetime,
+                            rawTimestamp: row[0], // Store raw CSV timestamp
                             timestamp: Math.floor(datetime.getTime() / 1000),
                             open: parseFloat(row[1]),
                             high: parseFloat(row[2]),
@@ -527,16 +632,37 @@
             const takeProfit = parseFloat(document.getElementById('take-profit').value);  // In points
             const dollarsPerPoint = parseFloat(document.getElementById('dollars-per-point').value);
             
+            // Debug logging
+            console.log('=== BACKTEST PARAMETERS ===');
+            console.log(`BB Period: ${bbPeriod}, BB Std: ${bbStd}`);
+            console.log(`RSI Threshold: ${rsiThreshold}`);
+            console.log(`Stop Loss: ${stopLoss}, Take Profit: ${takeProfit}`);
+            console.log(`Data points: ${processedData.length}`);
+            
             // Calculate indicators
             const rsi = calculateRSI(processedData);
             const bb = calculateBollingerBands(processedData, bbPeriod, bbStd);
             
+            // Log sample RSI values for debugging
+            console.log('\n=== SAMPLE RSI VALUES (first 10 valid) ===');
+            let validRsiCount = 0;
+            for (let i = 0; i < rsi.length && validRsiCount < 10; i++) {
+                if (rsi[i] !== null && !isNaN(rsi[i])) {
+                    console.log(`Bar ${i}: RSI = ${rsi[i].toFixed(2)}, Close = ${processedData[i].close.toFixed(2)}`);
+                    validRsiCount++;
+                }
+            }
+            
             // Run strategy - MATCHING FINAL_BACKTEST.py exactly
             const trades = [];
             let position = null;
+            let entrySignalsLog = [];
             
             // Start after indicators are ready (100 bars like in FINAL_BACKTEST)
             const startIndex = Math.max(100, bbPeriod);
+            
+            console.log(`\n=== STRATEGY EXECUTION ===`);
+            console.log(`Starting from bar ${startIndex}`);
             
             for (let i = startIndex; i < processedData.length; i++) {
                 const bar = processedData[i];
@@ -579,6 +705,8 @@
                             barsHeld: barsHeld,
                             durationMinutes: durationMinutes
                         });
+                        
+                        console.log(`EXIT #${trades.length}: ${exitReason} at ${bar.datetime.toISOString().slice(0,16)}, PnL: ${pnlPoints.toFixed(1)} pts`);
                         position = null;
                     }
                 }
@@ -588,6 +716,22 @@
                     const rsiSignal = rsi[i] > rsiThreshold;
                     const timeSignal = hour >= 9 && hour <= 15;  // Trading hours
                     
+                    // Log potential entry signals (limit to first 20 to avoid spam)
+                    if (entrySignalsLog.length < 20 && (bbSignal || rsiSignal)) {
+                        entrySignalsLog.push({
+                            bar: i,
+                            datetime: bar.datetime.toISOString().slice(0,16),
+                            close: bar.close.toFixed(2),
+                            bbUpper: bb.upper[i]?.toFixed(2) || 'null',
+                            rsi: rsi[i]?.toFixed(2) || 'null',
+                            hour: hour,
+                            bbSignal: bbSignal,
+                            rsiSignal: rsiSignal,
+                            timeSignal: timeSignal,
+                            allSignals: bbSignal && rsiSignal && timeSignal
+                        });
+                    }
+                    
                     if (bbSignal && rsiSignal && timeSignal) {
                         position = {
                             entryIndex: i,
@@ -596,9 +740,28 @@
                             stopLossPrice: bar.close + stopLoss,  // Price goes UP = loss for short
                             takeProfitPrice: bar.close - takeProfit  // Price goes DOWN = profit for short
                         };
+                        
+                        // Enhanced logging with raw CSV timestamp for cross-checking
+                        console.log(`ENTRY #${trades.length + 1}:`);
+                        console.log(`  Display time: ${bar.datetime.toISOString().slice(0,16)}`);
+                        console.log(`  Raw CSV timestamp: ${bar.rawTimestamp || 'N/A'}`);
+                        console.log(`  Local hour (getHours): ${bar.datetime.getHours()}`);
+                        console.log(`  UTC ISO: ${bar.datetime.toISOString()}`);
+                        console.log(`  Price: ${bar.close.toFixed(2)}, RSI: ${rsi[i].toFixed(2)}, BB Upper: ${bb.upper[i].toFixed(2)}`);
+                        console.log(`  Bar index: ${i}`);
                     }
                 }
             }
+            
+            // Log entry signals analysis
+            console.log('\n=== ENTRY SIGNALS ANALYSIS (first 20) ===');
+            console.table(entrySignalsLog);
+            
+            // Summary
+            console.log('\n=== BACKTEST SUMMARY ===');
+            console.log(`Total trades executed: ${trades.length}`);
+            console.log(`First trade: ${trades[0]?.entryTime?.toISOString().slice(0,10) || 'None'}`);
+            console.log(`Last trade: ${trades[trades.length-1]?.entryTime?.toISOString().slice(0,10) || 'None'}`);
             
             // Display results
             displayResults(trades, rsi, bb);
@@ -611,6 +774,22 @@
             const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
             const totalPnlPoints = trades.reduce((sum, t) => sum + t.pnlPoints, 0);
             const winRate = trades.length > 0 ? (wins.length / trades.length * 100) : 0;
+            
+            // Calculate Sharpe ratio (simplified daily)
+            let sharpeRatio = 0;
+            if (trades.length > 1) {
+                const returns = trades.map(t => t.pnlPoints);
+                const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+                const stdDev = Math.sqrt(returns.map(r => Math.pow(r - avgReturn, 2)).reduce((a, b) => a + b, 0) / returns.length);
+                if (stdDev > 0) {
+                    sharpeRatio = avgReturn / stdDev;
+                }
+            }
+            
+            // Calculate profit factor
+            const totalWins = wins.reduce((sum, t) => sum + Math.abs(t.pnlPoints), 0);
+            const totalLosses = losses.reduce((sum, t) => sum + Math.abs(t.pnlPoints), 0);
+            const profitFactor = totalLosses > 0 ? totalWins / totalLosses : totalWins > 0 ? Infinity : 0;
             
             // Calculate average durations
             const avgBarsHeld = trades.length > 0 ? 
@@ -644,6 +823,14 @@
                 <div class="stat-row">
                     <span class="stat-label">Total P&L ($)</span>
                     <span class="stat-value ${totalPnl >= 0 ? 'positive' : 'negative'}">$${totalPnl.toFixed(2)}</span>
+                </div>
+                <div class="stat-row" style="border-top: 1px solid #2a2e39; margin-top: 5px; padding-top: 5px;">
+                    <span class="stat-label">Sharpe Ratio</span>
+                    <span class="stat-value ${sharpeRatio >= 1 ? 'positive' : sharpeRatio >= 0 ? 'neutral' : 'negative'}">${sharpeRatio.toFixed(3)}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Profit Factor</span>
+                    <span class="stat-value ${profitFactor >= 1.5 ? 'positive' : profitFactor >= 1 ? 'neutral' : 'negative'}">${profitFactor === Infinity ? '∞' : profitFactor.toFixed(2)}</span>
                 </div>
                 <div class="stat-row" style="border-top: 1px solid #2a2e39; margin-top: 5px; padding-top: 5px;">
                     <span class="stat-label">Avg Duration</span>
